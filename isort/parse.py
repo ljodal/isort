@@ -439,6 +439,7 @@ def file_contents(contents: str, config: Config = DEFAULT_CONFIG) -> ParsedConte
 
             if type_of_import == "from":
                 import_from = just_imports.pop(0)
+                import_from = config.preprocess_import_from(import_from, just_imports)
                 placed_module = finder(import_from)
                 if config.verbose and not config.only_modified:
                     print(f"from-type place_module for {import_from} returned {placed_module}")

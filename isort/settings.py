@@ -307,6 +307,7 @@ class Config(_Config):
         self._skips: Optional[FrozenSet[str]] = None
         self._skip_globs: Optional[FrozenSet[str]] = None
         self._sorting_function: Optional[Callable[..., List[str]]] = None
+        self._preprocess_import_from: Optional[Callable[[str, List[str]], str]] = None
 
         if config:
             config_vars = vars(config).copy()
@@ -318,6 +319,7 @@ class Config(_Config):
             config_vars.pop("_skips")
             config_vars.pop("_skip_globs")
             config_vars.pop("_sorting_function")
+            config_vars.pop("_preprocess_import_from")
             super().__init__(**config_vars)  # type: ignore
             return
 
@@ -725,6 +727,29 @@ class Config(_Config):
                 raise SortingFunctionDoesNotExist(self.sort_order, available_sort_orders)
 
         return self._sorting_function
+
+    @property
+    def preprocess_import_from(self) -> Callable[[str, List[str]], str]:
+        if self._preprocess_import_from is not None:
+            return self._preprocess_import_from
+
+        plugins: List[Callable[[str, List[str], Config], str]] = []
+
+        import pkg_resources
+
+        for preprocessor_plugin in pkg_resources.iter_entry_points(
+            "isort.import_from_preprocessor"
+        ):
+            plugins.append(preprocessor_plugin.load())
+
+        def _preprocess_import_from(import_from: str, names: List[str]) -> str:
+            for plugin in plugins:
+                import_from = plugin(import_from, names, self)
+
+            return import_from
+
+        self._preprocess_import_from = _preprocess_import_from
+        return _preprocess_import_from
 
     def _parse_known_pattern(self, pattern: str) -> List[str]:
         """Expand pattern if identified as a directory and return found sub packages"""
